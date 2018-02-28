@@ -49,10 +49,27 @@ struct FTilesDefenition
 
 using RngT = std::mt19937;
 
-enum class Direction
+UENUM(BlueprintType)
+enum class EDirection : uint8
 {
-   North, South, East, West,
+   DE_North UMETA(DisplayName = "North"),
+   DE_South UMETA(DisplayName = "South"),
+   DE_East UMETA(DisplayName = "East"),
+   DE_West UMETA(DisplayName = "West"),
+   DE_NorthWest UMETA(DisplayName = "NorthWest"),
+   DE_NorthEast UMETA(DisplayName = "NorthEast"),
+   DE_SouthWest UMETA(DisplayName = "SouthWest"),
+   DE_SouthEast UMETA(DisplayName = "SouthEast")
 };
+
+
+USTRUCT(BlueprintType)
+struct FTileMeta
+{
+   GENERATED_BODY()
+   UPROPERTY(EditAnywhere) EDirection dir;
+};
+
 
 UCLASS()
 class ROGUELIKE_API ADungeonMapActor : public AActor
@@ -87,6 +104,8 @@ protected:
    UFUNCTION(BlueprintCallable, Category = MapMethods) bool IsAreaUnused(int32 xStart, int32 yStart, int32 xEnd, int32 yEnd);
    UFUNCTION(BlueprintCallable, Category = MapMethods) bool IsAdjacent(int32 x, int32 y, ETileType tile);
    UFUNCTION(BlueprintCallable, Category = MapMethods) void Build();
+   UFUNCTION(BlueprintCallable, Category = MapMethods) void SetCellMeta(int32 x, int32 y, FTileMeta celltype);
+   UFUNCTION(BlueprintCallable, Category = MapMethods) FTileMeta GetCellMeta(int32 x, int32 y) const;
 public:	
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
@@ -97,14 +116,16 @@ public:
 
 private:
    std::vector<ETileType> Data_;
+   std::vector<FTileMeta>  Meta_;
+
    RngT rnd_;
 
    void Generate();
    int32 GetRandomInt(int32 min, int32 max);
-   Direction GetRandomDirection();
-   bool MakeCorridor(int32 x, int32 y, int32 maxLength, Direction direction);
-   bool MakeRoom(int32 x, int32 y, int32 xMaxLength, int32 yMaxLength, Direction direction);
-   bool MakeFeature(int32 x, int32 y, int32 xmod, int32 ymod, Direction direction);
+   EDirection GetRandomDirection();
+   bool MakeCorridor(int32 x, int32 y, int32 maxLength, EDirection direction);
+   bool MakeRoom(int32 x, int32 y, int32 xMaxLength, int32 yMaxLength, EDirection direction);
+   bool MakeFeature(int32 x, int32 y, int32 xmod, int32 ymod, EDirection direction);
    bool MakeFeature();
    bool MakeStairs(ETileType tile);
    bool MakeDungeon();

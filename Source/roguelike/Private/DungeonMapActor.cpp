@@ -87,9 +87,18 @@ bool ADungeonMapActor::IsAdjacent(int32 x, int32 y, ETileType tile)
       GetCell(x, y - 1) == tile || GetCell(x, y + 1) == tile;
 }
 
+void ADungeonMapActor::SetCellMeta(int32 x, int32 y, FTileMeta celltype)
+{
+   Meta_[x + XSize * y] = celltype;
+}
+
+FTileMeta ADungeonMapActor::GetCellMeta(int32 x, int32 y) const
+{
+   return Meta_[x + XSize * y];
+}
+
 void ADungeonMapActor::Build() 
 {
-   
    Generate();
 
    for (int32 i = 0; i < InstancedStaticMeshComponents.Num(); ++i) {
@@ -124,7 +133,7 @@ void ADungeonMapActor::Build()
          switch (GetCell(x, y)) {
             case ETileType::TE_DirtFloor: {
                FVector size = MeshDefenitions.DirtFloor.StaticMesh->GetBoundingBox().GetSize();
-               FVector SpawnPosVector = local.GetLocation() +  FVector(x * size.X * scale, y * size.Y * scale, 0.0f);
+               FVector SpawnPosVector = local.GetLocation() + FVector(x * size.X * scale, y * size.Y * scale, 0.0f);
                FTransform Transform(Rotator, SpawnPosVector, ScaleVector);
                InstancedStaticMeshComponents[DirtFloor_Index]->AddInstance(Transform);
                break;
@@ -192,6 +201,10 @@ void ADungeonMapActor::Generate()
 {
    Data_.empty();
    Data_ = std::vector<ETileType>(XSize * YSize, ETileType::TE_Unused);
+   
+   Meta_.empty();
+   Meta_.reserve(XSize * YSize);
+   
    rnd_.seed(Seed);
    MakeDungeon();
 }
@@ -201,12 +214,12 @@ int32 ADungeonMapActor::GetRandomInt(int32 min, int32 max)
    return std::uniform_int_distribution<int32>(min, max)(rnd_);
 }
 
-Direction ADungeonMapActor::GetRandomDirection()
+EDirection ADungeonMapActor::GetRandomDirection()
 {
-   return Direction(std::uniform_int_distribution<int>(0, 3)(rnd_));
+   return EDirection(std::uniform_int_distribution<int>(0, 3)(rnd_));
 }
 
-bool ADungeonMapActor::MakeCorridor(int32 x, int32 y, int32 maxLength, Direction direction) 
+bool ADungeonMapActor::MakeCorridor(int32 x, int32 y, int32 maxLength, EDirection direction) 
 {
    auto length = GetRandomInt(2, maxLength);
 
@@ -216,13 +229,13 @@ bool ADungeonMapActor::MakeCorridor(int32 x, int32 y, int32 maxLength, Direction
    auto xEnd = x;
    auto yEnd = y;
 
-   if (direction == Direction::North)
+   if (direction == EDirection::DE_North)
       yStart = y - length;
-   else if (direction == Direction::East)
+   else if (direction == EDirection::DE_East)
       xEnd = x + length;
-   else if (direction == Direction::South)
+   else if (direction == EDirection::DE_South)
       yEnd = y + length;
-   else if (direction == Direction::West)
+   else if (direction == EDirection::DE_West)
       xStart = x - length;
 
    if (!IsXInBounds(xStart) || !IsXInBounds(xEnd) || !IsYInBounds(yStart) || !IsYInBounds(yEnd))
@@ -236,7 +249,7 @@ bool ADungeonMapActor::MakeCorridor(int32 x, int32 y, int32 maxLength, Direction
    return true;
 }
 
-bool ADungeonMapActor::MakeRoom(int32 x, int32 y, int32 xMaxLength, int32 yMaxLength, Direction direction) 
+bool ADungeonMapActor::MakeRoom(int32 x, int32 y, int32 xMaxLength, int32 yMaxLength, EDirection direction) 
 {
    // Minimum room size of 4x4 tiles (2x2 for walking on, the rest is walls)
    auto xLength = GetRandomInt(4, xMaxLength);
@@ -248,25 +261,25 @@ bool ADungeonMapActor::MakeRoom(int32 x, int32 y, int32 xMaxLength, int32 yMaxLe
    auto xEnd = x;
    auto yEnd = y;
 
-   if (direction == Direction::North)
+   if (direction == EDirection::DE_North)
    {
       yStart = y - yLength;
       xStart = x - xLength / 2;
       xEnd = x + (xLength + 1) / 2;
    }
-   else if (direction == Direction::East)
+   else if (direction == EDirection::DE_East)
    {
       yStart = y - yLength / 2;
       yEnd = y + (yLength + 1) / 2;
       xEnd = x + xLength;
    }
-   else if (direction == Direction::South)
+   else if (direction == EDirection::DE_South)
    {
       yEnd = y + yLength;
       xStart = x - xLength / 2;
       xEnd = x + (xLength + 1) / 2;
    }
-   else if (direction == Direction::West)
+   else if (direction == EDirection::DE_West)
    {
       yStart = y - yLength / 2;
       yEnd = y + (yLength + 1) / 2;
@@ -279,13 +292,15 @@ bool ADungeonMapActor::MakeRoom(int32 x, int32 y, int32 xMaxLength, int32 yMaxLe
    if (!IsAreaUnused(xStart, yStart, xEnd, yEnd))
       return false;
 
+   //SetCellMeta()
+   
    SetCells(xStart, yStart, xEnd, yEnd, ETileType::TE_DirtWall);
    SetCells(xStart + 1, yStart + 1, xEnd - 1, yEnd - 1, ETileType::TE_DirtFloor);
 
    return true;
 }
 
-bool ADungeonMapActor::MakeFeature(int32 x, int32 y, int32 xmod, int32 ymod, Direction direction)
+bool ADungeonMapActor::MakeFeature(int32 x, int32 y, int32 xmod, int32 ymod, EDirection direction)
 {
    // Choose what to build
    auto chance = GetRandomInt(0, 100);
@@ -340,22 +355,22 @@ bool ADungeonMapActor::MakeFeature()
 
       if (GetCell(x, y + 1) == ETileType::TE_DirtFloor || GetCell(x, y + 1) == ETileType::TE_Corridor)
       {
-         if (MakeFeature(x, y, 0, -1, Direction::North))
+         if (MakeFeature(x, y, 0, -1, EDirection::DE_North))
             return true;
       }
       else if (GetCell(x - 1, y) == ETileType::TE_DirtFloor || GetCell(x - 1, y) == ETileType::TE_Corridor)
       {
-         if (MakeFeature(x, y, 1, 0, Direction::East))
+         if (MakeFeature(x, y, 1, 0, EDirection::DE_East))
             return true;
       }
       else if (GetCell(x, y - 1) == ETileType::TE_DirtFloor || GetCell(x, y - 1) == ETileType::TE_Corridor)
       {
-         if (MakeFeature(x, y, 0, 1, Direction::South))
+         if (MakeFeature(x, y, 0, 1, EDirection::DE_South))
             return true;
       }
       else if (GetCell(x + 1, y) == ETileType::TE_DirtFloor || GetCell(x + 1, y) == ETileType::TE_Corridor)
       {
-         if (MakeFeature(x, y, -1, 0, Direction::West))
+         if (MakeFeature(x, y, -1, 0, EDirection::DE_West))
             return true;
       }
    }
